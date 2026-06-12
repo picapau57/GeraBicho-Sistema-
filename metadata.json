@@ -1,0 +1,6 @@
+{
+  "name": "Portal do Jogo do Bicho - Palpites e Loja",
+  "description": "Portal completo profissional de palpites do Jogo do Bicho, resultados em tempo real, blog informativo e loja virtual de ferramentas e planilhas digitais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

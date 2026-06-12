@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Outlet&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-gold-50: #fefcf3;
+  --color-gold-100: #fdf6db;
+  --color-gold-500: #d4af37;
+  --color-gold-600: #b8921a;
+  --color-gold-700: #93720f;
+  
+  --color-navy-50: #f0f4f8;
+  --color-navy-900: #0a192f;
+  --color-navy-950: #020c1b;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #0a0f1d;
+  color: #cbd5e1;
+}
+
+/* Custom continuous scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1526;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
+}
+
+.glow-gold {
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+}
+
