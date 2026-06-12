@@ -20,6 +20,183 @@ import BlogPanel from "./components/BlogPanel";
 import ClientArea from "./components/ClientArea";
 import AdminPanel from "./components/AdminPanel";
 
+// Fallback constants for static platform resilience (e.g. Vercel static deployments)
+const DEFAULT_FALLBACK_SETTINGS: SystemSetting = {
+  siteName: "GeraBicho Premium - Palpites e Ferramentas Digitais",
+  contactEmail: "suporte@gerabichopremium.com",
+  contactPhone: "+55 (62) 98575-6881",
+  supportWhatsapp: "5562985756881",
+  rulesText: "As informações fornecidas neste portal são de cunho puramente estatístico, histórico e de entretenimento. Não realizamos nem intermediamos qualquer tipo de apostas.",
+  seoTitle: "Palpites do Jogo do Bicho de Hoje - Planilhas e Fechamentos Digitais",
+  seoDescription: "Obtenha palpites atualizados do Jogo do Bicho diariamente e baixe softwares de fechamento matemático, dezenas e milhares quentes.",
+  seoKeywords: "jogo do bicho, palpites do bicho, milhar do bicho, resultado do bicho rio, planilhas jogo do bicho",
+  showPopupAd: true,
+  mercadoPagoToken: "APP_USR-MOCK-TOKEN-API-MERCADOPAGO"
+};
+
+const DEFAULT_FALLBACK_ADS: Ad[] = [
+  {
+    id: "ad_top_banner",
+    title: "MEGA PLANILHA SÉRIE PRECIOSA: Baixe o Fechamento Inteligente do Milhar e Centena Hoje!",
+    imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200",
+    linkUrl: "#produtos",
+    position: "top_banner",
+    isActive: true,
+    clicks: 12
+  },
+  {
+    id: "ad_popup",
+    title: "Super Sistema 'Bicho Expert' Liberado!",
+    imageUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=600",
+    linkUrl: "#produtos",
+    position: "popup",
+    isActive: true,
+    clicks: 45
+  },
+  {
+    id: "ad_sidebar",
+    title: "Participe de Nosso Grupo VIP de Palpites Diários!",
+    imageUrl: "https://images.unsplash.com/photo-1618005198143-e5283b519a7f?auto=format&fit=crop&q=80&w=300",
+    linkUrl: "#produtos",
+    position: "sidebar",
+    isActive: true,
+    clicks: 5
+  }
+];
+
+const DEFAULT_FALLBACK_TESTIMONIALS: Testimonial[] = [
+  {
+    id: "test_1",
+    name: "Geraldo Nogueira",
+    role: "Apostador Amador",
+    text: "Com a Planilha de Centenas Cercadas que comprei aqui, consegui obter resultados consistentes toda semana. O PIX foi liberado na hora, excelente atendimento!",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    id: "test_2",
+    name: "Luciana Lima",
+    role: "Especialista em Matemática",
+    text: "Os fechamentos gerados pela planilha têm excelente embasamento estatístico. Evita jogos soltos e sem sentido. Altamente recomendado!",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
+  }
+];
+
+const DEFAULT_FALLBACK_PRODUCTS: Product[] = [
+  {
+    id: "prod_planilha_milhar",
+    title: "Super Planilha Excel - Fechamento de Milhar Pró",
+    description: "Planilha automatizada em Excel para cercamento de milhar e centena. Gera combinações matemáticas otimizadas com base nas estatísticas das dezenas mais sorteadas nos últimos 90 dias. Aumente em até 85% as chances de acerto calculando grupos equilibrados.",
+    category: "planilhas",
+    price: 97.00,
+    discountPrice: 49.90,
+    fileType: "XLSX",
+    fileName: "fechamento_milhar_centena_v4.xlsx",
+    fileSize: "2.4 MB",
+    rating: 4.8,
+    salesCount: 142,
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=600",
+    features: [
+      "Fechamentos automáticos de milhar e centena",
+      "Estatísticas integradas atualizadas",
+      "Manual explicativo em vídeo",
+      "Suporte direto no WhatsApp"
+    ],
+    reviews: [
+      { id: "rev_1", userName: "Antônio M.", rating: 5, comment: "Fiz o terno de grupo na primeira semana! Muito boa.", date: "2026-06-10" }
+    ]
+  },
+  {
+    id: "prod_sistema_bicho_expert",
+    title: "Sistema Bicho Expert - Gerador de Tendências",
+    description: "Sistema online hospedado de alta velocidade. Fornece análises de estatística automatizada de atrasos e frequência de dezenas e grupos por horário para calcular as tendências. Acesse imediatamente por link no Bloco de Notas sem precisar instalar nada.",
+    category: "sistemas",
+    price: 199.00,
+    discountPrice: 137.00,
+    fileType: "TXT",
+    fileName: "Acesso_Bicho_Expert.txt",
+    fileSize: "1.5 KB",
+    rating: 4.9,
+    salesCount: 89,
+    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=600",
+    features: [
+      "Banco de dados histórico de 2020 a 2026",
+      "Cálculos de frequência e desvio padrão",
+      "Alerta de bichos atrasados em tempo real",
+      "Atualizações online automáticas"
+    ],
+    reviews: [
+      { id: "rev_3", userName: "Roberto S.", rating: 5, comment: "Software fantástico, as tendências de atraso batem 90% das vezes.", date: "2026-06-08" }
+    ]
+  },
+  {
+    id: "prod_app_palpite_facil",
+    title: "Gerador de Palpites Inteligente - App Android APK",
+    description: "Aplicativo Android leve e de instalação imediata que fornece palpites diários gerados através de inteligência artificial baseada na 'tabela da puxada' clássica aliada ao calendário lunar e numerologia cabalística.",
+    category: "aplicativos",
+    price: 29.90,
+    discountPrice: 19.90,
+    fileType: "APK",
+    fileName: "palpite_inteligente_v2.apk",
+    fileSize: "8.1 MB",
+    rating: 4.6,
+    salesCount: 312,
+    image: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=600",
+    features: [
+      "Notificações instantâneas de resultados",
+      "Palpites rápidos na tela com 1 clique"
+    ],
+    reviews: []
+  }
+];
+
+const DEFAULT_FALLBACK_RESULTS: LotteryResult[] = [
+  {
+    id: "res_mock_1",
+    lottery: "rio",
+    date: new Date().toISOString().split("T")[0],
+    drawName: "PTM",
+    rows: [
+      { pos: "1º", prize: "3412", group: "03", animal: "Burro" },
+      { pos: "2º", prize: "2156", group: "14", animal: "Gato" },
+      { pos: "3º", prize: "1009", group: "03", animal: "Burro" },
+      { pos: "4º", prize: "7724", group: "06", animal: "Cabra" },
+      { pos: "5º", prize: "3988", group: "22", animal: "Tigre" },
+      { pos: "6º", prize: "4041", group: "11", animal: "Cavalo" },
+      { pos: "7º", prize: "099", group: "25", animal: "Vaca" }
+    ]
+  },
+  {
+    id: "res_mock_2",
+    lottery: "rio",
+    date: new Date().toISOString().split("T")[0],
+    drawName: "PT",
+    rows: [
+      { pos: "1º", prize: "5561", group: "16", animal: "Leão" },
+      { pos: "2º", prize: "1284", group: "21", animal: "Touro" },
+      { pos: "3º", prize: "5432", group: "08", animal: "Cobra" },
+      { pos: "4º", prize: "9012", group: "03", animal: "Burro" },
+      { pos: "5º", prize: "3122", group: "06", animal: "Cabra" },
+      { pos: "6º", prize: "3392", group: "23", animal: "Urso" },
+      { pos: "7º", prize: "401", group: "01", animal: "Avestruz" }
+    ]
+  }
+];
+
+const DEFAULT_FALLBACK_PREDICTIONS: Prediction[] = [
+  {
+    id: "pred_mock_1",
+    type: "palpitao",
+    title: "Palpitação Geral de Hoje",
+    numbers: ["Leão (Grupo 16)", "Jacaré (Grupo 15)"],
+    animals: ["Leão", "Jacaré"],
+    content: "Prognósticos indicam força do Grupo 16 (Leão) nas extrações da tarde. Ótimas dezenas para cercar do 1º ao 5º prêmio.",
+    date: new Date().toISOString().split("T")[0],
+    updatedAt: new Date().toISOString()
+  }
+];
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("inicio");
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -58,32 +235,73 @@ export default function App() {
         // Not logged in is ok
       }
 
-      const s = await api.getSettings();
-      setSettings(s);
-
-      const a = await api.getAds();
-      setAds(a);
-      // Find possible popup ad from retrieved cards
-      const pop = a.find(item => item.position === "popup");
-      if (pop && s.showPopupAd) {
-        setPopupAd(pop);
-        // Open popup after a short timeout
-        setTimeout(() => setShowPopupAdModal(true), 2000);
+      // Settings fetch with fallback
+      let activeSettings = DEFAULT_FALLBACK_SETTINGS;
+      try {
+        const s = await api.getSettings();
+        setSettings(s);
+        activeSettings = s;
+      } catch (e) {
+        console.warn("API settings offline, using local fallback settings:", e);
+        setSettings(DEFAULT_FALLBACK_SETTINGS);
       }
 
-      const t = await api.getTestimonials();
-      setTestimonials(t);
+      // Ads fetch with fallback
+      try {
+        const a = await api.getAds();
+        setAds(a);
+        const pop = a.find(item => item.position === "popup");
+        if (pop && activeSettings.showPopupAd) {
+          setPopupAd(pop);
+          setTimeout(() => setShowPopupAdModal(true), 2000);
+        }
+      } catch (e) {
+        console.warn("API ads offline, using local fallback ads:", e);
+        setAds(DEFAULT_FALLBACK_ADS);
+        const pop = DEFAULT_FALLBACK_ADS.find(item => item.position === "popup");
+        if (pop && DEFAULT_FALLBACK_SETTINGS.showPopupAd) {
+          setPopupAd(pop);
+          setTimeout(() => setShowPopupAdModal(true), 2000);
+        }
+      }
 
-      const p = await api.getProducts();
-      setProducts(p);
+      // Testimonials fetch with fallback
+      try {
+        const t = await api.getTestimonials();
+        setTestimonials(t);
+      } catch (e) {
+        console.warn("API testimonials offline, using fallback:", e);
+        setTestimonials(DEFAULT_FALLBACK_TESTIMONIALS);
+      }
 
-      const r = await api.getResults();
-      setResults(r.slice(0, 3)); // show top 3 results
+      // Products fetch with fallback
+      try {
+        const p = await api.getProducts();
+        setProducts(p);
+      } catch (e) {
+        console.warn("API products offline, using fallback:", e);
+        setProducts(DEFAULT_FALLBACK_PRODUCTS);
+      }
 
-      const pred = await api.getPredictions();
-      setPredictions(pred.slice(0, 2)); // show top 2 predictions
+      // Results fetch with fallback
+      try {
+        const r = await api.getResults();
+        setResults(r.slice(0, 3)); // show top 3 results
+      } catch (e) {
+        console.warn("API results offline, using fallback:", e);
+        setResults(DEFAULT_FALLBACK_RESULTS);
+      }
+
+      // Predictions fetch with fallback
+      try {
+        const pred = await api.getPredictions();
+        setPredictions(pred.slice(0, 2)); // show top 2 predictions
+      } catch (e) {
+        console.warn("API predictions offline, using fallback:", e);
+        setPredictions(DEFAULT_FALLBACK_PREDICTIONS);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("General global load error:", e);
     } finally {
       setLoading(false);
     }
