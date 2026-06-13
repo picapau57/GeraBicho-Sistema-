@@ -36,6 +36,7 @@ export interface Product {
   fileName: string;
   fileSize: string;
   downloadUrl?: string; // local secure path
+  savedName?: string; // name of real file inside uploads/
   rating: number;
   salesCount: number;
   image: string;

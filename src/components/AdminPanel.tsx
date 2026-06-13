@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
-import { Settings, Shield, ShoppingBag, FileText, Check, Settings2, Users, CreditCard, Award, HelpCircle, ToggleLeft, ToggleRight, CheckSquare } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Settings, Shield, ShoppingBag, FileText, Check, Settings2, Users, CreditCard, Award, HelpCircle, ToggleLeft, ToggleRight, CheckSquare, Upload } from "lucide-react";
 import { User, Product, Order, Ad, Testimonial, SystemSetting, Article } from "../types";
 import { api } from "../services/api";
 
@@ -24,10 +24,82 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
   const [products, setProducts] = useState<Product[]>([]);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: "", description: "", category: "planilhas", price: 0, discountPrice: undefined,
-    fileType: "XLSX", fileName: "", fileSize: "", image: "", features: []
+    fileType: "XLSX", fileName: "", fileSize: "", image: "", features: [], savedName: ""
   });
   const [editingProdId, setEditingProdId] = useState<string | null>(null);
   const [newFeatureText, setNewFeatureText] = useState("");
+
+  // Storage, dragging and upload control state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error" | "none">("idle");
+  const [uploadedFileInfo, setUploadedFileInfo] = useState<{ name: string; size: string; type: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setUploadStatus("uploading");
+      setUploadedFileInfo(null);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = localStorage.getItem("bicho_jwt_token");
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error("Falha no upload do arquivo");
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setUploadStatus("success");
+        setUploadedFileInfo({ name: data.fileName, size: data.fileSize, type: data.fileType });
+        
+        // Auto-populate the active product form fields!
+        setNewProduct(prev => ({
+          ...prev,
+          fileName: data.fileName,
+          fileSize: data.fileSize,
+          fileType: (["XLSX","PDF","ZIP","EXE","APK","DOCX","RAR","TXT"].includes(data.fileType) ? data.fileType : "ZIP") as any,
+          savedName: data.savedName
+        }));
+      } else {
+        setUploadStatus("error");
+      }
+    } catch (err) {
+      console.error(err);
+      setUploadStatus("error");
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
 
   // Orders & payments
   const [orders, setOrders] = useState<Order[]>([]);
@@ -112,8 +184,10 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
       }
       setNewProduct({
         title: "", description: "", category: "planilhas", price: 0, discountPrice: undefined,
-        fileType: "XLSX", fileName: "", fileSize: "", image: "", features: []
+        fileType: "XLSX", fileName: "", fileSize: "", image: "", features: [], savedName: ""
       });
+      setUploadStatus("idle");
+      setUploadedFileInfo(null);
       refreshAllAdminData();
       if (onRefreshTrigger) onRefreshTrigger();
     } catch (e: any) {
@@ -521,6 +595,67 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
                   </select>
                 </div>
 
+                {/* Visual File Drag and Drop Dropzone */}
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-black text-rose-800 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <span>📁 Upload de Arquivo do Produto (Planilhas, PDF, APK, ZIP)</span>
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">Recomendado</span>
+                  </label>
+                  
+                  <div
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
+                      isDragging
+                        ? "border-rose-500 bg-rose-50/70 scale-[0.99]"
+                        : "border-slate-300 bg-slate-50/30 hover:border-rose-450 hover:bg-slate-50/70"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={onFileChange}
+                      className="hidden"
+                      accept=".xlsx,.xls,.pdf,.zip,.rar,.exe,.apk,.docx,.txt"
+                    />
+                    
+                    <div className="bg-rose-50 p-2.5 rounded-full border border-rose-100">
+                      <Upload className="w-5 h-5 text-rose-650" />
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-slate-800">
+                        Arraste e solte o arquivo do produto aqui ou <span className="text-rose-600 underline font-extrabold">clique para procurar</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Suporta planilhas Excel, Manuais (PDF), ferramentas compactadas (ZIP/RAR), aplicativos (APK), softwares e Bloco de notas (TXT). Limite 50MB.
+                      </p>
+                    </div>
+
+                    {uploadStatus === "uploading" && (
+                      <div className="mt-2 flex items-center space-x-2 bg-slate-900 text-white rounded-full px-4 py-1.5 text-[10px] font-bold shadow animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                        <span>Seu arquivo está sendo gravado com segurança no servidor...</span>
+                      </div>
+                    )}
+
+                    {uploadStatus === "success" && uploadedFileInfo && (
+                      <div className="mt-2 flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 border-emerald-250 border rounded-xl px-4 py-1.5 text-[10px] font-extrabold">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Arquivo "{uploadedFileInfo.name}" ({uploadedFileInfo.size}) associado ao produto!</span>
+                      </div>
+                    )}
+
+                    {uploadStatus === "error" && (
+                      <div className="mt-2 flex items-center space-x-1.5 bg-rose-50 text-rose-800 border-rose-200 border rounded-xl px-4 py-1.5 text-[10px] font-extrabold">
+                        <span>⚠️ Falha ao processar arquivo. Verifique sua conexão ou tente manual.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Nome Físico do Arquivo Seguro do Servidor</label>
                   <input
@@ -630,7 +765,20 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
                       <img src={p.image} referrerPolicy="no-referrer" className="w-10 h-10 object-cover rounded-lg bg-slate-900 shrink-0" />
                       <div>
                         <h6 className="font-extrabold text-slate-900 text-sm leading-tight">{p.title}</h6>
-                        <p className="text-xs text-slate-400 uppercase tracking-widest">{p.category} • Arquivo : {p.fileName} ({p.fileSize})</p>
+                        <p className="text-xs text-slate-400 uppercase tracking-widest flex flex-wrap items-center gap-1.5 mt-0.5 font-bold">
+                          <span>{p.category}</span>
+                          <span>•</span>
+                          <span>Arquivo: {p.fileName} ({p.fileSize})</span>
+                          {p.savedName ? (
+                            <span className="bg-emerald-100 text-emerald-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider inline-block">
+                              Físico Ativo
+                            </span>
+                          ) : (
+                            <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider inline-block">
+                              Modelo Demo
+                            </span>
+                          )}
+                        </p>
                       </div>
                     </div>
 

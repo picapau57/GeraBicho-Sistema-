@@ -7,6 +7,8 @@ import express from "express";
 import path from "path";
 import jwt from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
+import fs from "fs";
+import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { AppDb } from "./server_db";
 import { UserRole, User, Order } from "./src/types";
@@ -137,7 +139,7 @@ async function startServer() {
 
   app.post("/api/products", requireAdmin, (req, res) => {
     try {
-      const { title, description, category, price, discountPrice, fileType, fileName, fileSize, image, features } = req.body;
+      const { title, description, category, price, discountPrice, fileType, fileName, fileSize, image, features, savedName } = req.body;
       if (!title || !category || !price || !fileType || !fileName) {
         return res.status(400).json({ error: "Campos obrigatórios ausentes." });
       }
@@ -152,6 +154,7 @@ async function startServer() {
         fileType,
         fileName,
         fileSize: fileSize || "1.0 MB",
+        savedName: savedName || "",
         rating: 5.0,
         salesCount: 0,
         image: image || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=600",
@@ -442,6 +445,56 @@ async function startServer() {
   });
 
   // ==========================================
+  // File Upload API for Digital Products
+  // ==========================================
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  // Set up storage with standard Multer
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname);
+      const baseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "");
+      cb(null, `${baseName}-${uniqueSuffix}${ext}`);
+    }
+  });
+
+  const upload = multer({
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 } // limit 50MB
+  });
+
+  app.post("/api/upload", requireAdmin, upload.single("file"), (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo recebido." });
+      }
+      
+      const file = req.file;
+      const originalName = file.originalname;
+      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      const ext = path.extname(originalName).replace(".", "").toUpperCase();
+
+      // Return uploaded info for frontend auto-complete and save
+      res.json({
+        success: true,
+        fileName: originalName,
+        fileSize: sizeInMB,
+        fileType: ext,
+        savedName: file.filename
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ==========================================
   // Secure Digital File Downloads
   // ==========================================
   app.get("/api/downloads/:productId", authenticateToken, (req: any, res) => {
@@ -460,7 +513,44 @@ async function startServer() {
       const prod = AppDb.getProducts().find(p => p.id === productId);
       if (!prod) return res.status(404).json({ error: "Produto Digital não localizado." });
 
-      // Secure File Response piping. Instead of actual file failures, we dynamically serve
+      // First check if we have a real file linked/stored in our uploads directory.
+      // We can check if prod.savedName exists (we will add this field optionally to product), 
+      // or we can test if the filename matches.
+      const uploadsFolder = path.join(process.cwd(), "uploads");
+      
+      let actualFilePath: string | null = null;
+      if ((prod as any).savedName) {
+        const fp = path.join(uploadsFolder, (prod as any).savedName);
+        if (fs.existsSync(fp)) {
+          actualFilePath = fp;
+        }
+      }
+
+      // Fallback check if a file with similar name is present
+      if (!actualFilePath) {
+        const files = fs.existsSync(uploadsFolder) ? fs.readdirSync(uploadsFolder) : [];
+        const found = files.find(f => f.startsWith(productId) || (prod.fileName && f.includes(prod.fileName)));
+        if (found) {
+          actualFilePath = path.join(uploadsFolder, found);
+        }
+      }
+
+      if (actualFilePath && fs.existsSync(actualFilePath)) {
+        let contentType = "application/octet-stream";
+        const ext = path.extname(actualFilePath).toLowerCase();
+        if (ext === ".pdf") contentType = "application/pdf";
+        else if (ext === ".xlsx") contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        else if (ext === ".xls") contentType = "application/vnd.ms-excel";
+        else if (ext === ".zip") contentType = "application/zip";
+        else if (ext === ".apk") contentType = "application/vnd.android.package-archive";
+        else if (ext === ".txt") contentType = "text/plain";
+
+        res.setHeader("Content-Type", contentType);
+        res.download(actualFilePath, prod.fileName);
+        return;
+      }
+
+      // Secure File Response piping fallback. Instead of actual file failures, we dynamically serve
       // a clean simulated template file output matching the format beautifully.
       // This is elegant, standard-compliant, extremely lightweight, and ensures the files are perfectly protected!
       let mockContent = "";
