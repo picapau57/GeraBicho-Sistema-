@@ -18,7 +18,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "bicho-premium-secret-token-key-202
 
 async function startServer() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "60mb" }));
+  app.use(express.urlencoded({ limit: "60mb", extended: true }));
 
   // Log active DB state
   AppDb.load();
@@ -461,15 +462,57 @@ async function startServer() {
 
   app.post("/api/upload", requireAdmin, (req: any, res: any, next: any) => {
     console.log("[UPLOAD API] Recebendo requisição de upload...");
+
+    // 1. Resilient Base64 Mode (highly secure & bypasses proxy boundary/size limitations)
+    if (req.body && req.body.base64Data) {
+      try {
+        const { fileName, base64Data } = req.body;
+        if (!fileName || !base64Data) {
+          return res.status(400).json({ error: "Nome do arquivo ou conteúdo ausente para o upload Base64." });
+        }
+
+        console.log(`[UPLOAD API / BASE64] Processando arquivo: ${fileName}`);
+        let base64Content = base64Data;
+        if (base64Data.includes("base64,")) {
+          base64Content = base64Data.split("base64,")[1];
+        }
+
+        const buffer = Buffer.from(base64Content, "base64");
+        const sizeInMB = (buffer.length / (1024 * 1024)).toFixed(2) + " MB";
+        const ext = path.extname(fileName).replace(".", "").toUpperCase();
+
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const cleanBaseName = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, "");
+        const savedName = `${cleanBaseName || "doc"}-${uniqueSuffix}${path.extname(fileName)}`;
+
+        const fullPath = path.join(uploadsDir, savedName);
+        console.log(`[UPLOAD API / BASE64] Salvando arquivo físico em: ${fullPath} (${buffer.length} bytes)...`);
+        fs.writeFileSync(fullPath, buffer);
+        console.log("[UPLOAD API / BASE64] Arquivo salvo com absoluto sucesso!");
+
+        return res.json({
+          success: true,
+          fileName,
+          fileSize: sizeInMB,
+          fileType: ext,
+          savedName
+        });
+      } catch (e: any) {
+        console.error("[UPLOAD API / BASE64] Erro ao gravar Base64:", e);
+        return res.status(500).json({ error: `Erro interno no servidor ao gravar arquivo Base64: ${e.message}` });
+      }
+    }
+
+    // 2. Standard Multipart Mode
     upload.single("file")(req, res, (err: any) => {
       if (err) {
-        console.error("[UPLOAD API] Erro no multer ao receber arquivo:", err);
+        console.error("[UPLOAD API / MULTER] Erro ao receber arquivo:", err);
         return res.status(400).json({ error: `Falha no processamento do arquivo: ${err.message}` });
       }
 
       try {
         if (!req.file) {
-          console.error("[UPLOAD API] Nenhum arquivo recebido em req.file");
+          console.error("[UPLOAD API / MULTER] Nenhum arquivo recebido em req.file");
           return res.status(400).json({ error: "Nenhum arquivo físico foi recebido pelo servidor." });
         }
         
@@ -482,11 +525,11 @@ async function startServer() {
         const cleanBaseName = path.basename(originalName, path.extname(originalName)).replace(/[^a-zA-Z0-9_-]/g, "");
         const savedName = `${cleanBaseName || "doc"}-${uniqueSuffix}${path.extname(originalName)}`;
 
-        // Write file securely and synchoronously using node fs
+        // Write file securely and synchronously using node fs
         const fullPath = path.join(uploadsDir, savedName);
-        console.log(`[UPLOAD API] Gravando arquivo no disco: ${fullPath} (${file.size} bytes)...`);
+        console.log(`[UPLOAD API / MULTER] Gravando arquivo no disco: ${fullPath} (${file.size} bytes)...`);
         fs.writeFileSync(fullPath, file.buffer);
-        console.log("[UPLOAD API] Arquivo gravado com sucesso!");
+        console.log("[UPLOAD API / MULTER] Arquivo gravado com sucesso!");
 
         // Return uploaded info for frontend auto-complete and save
         res.json({
@@ -497,7 +540,7 @@ async function startServer() {
           savedName: savedName
         });
       } catch (e: any) {
-        console.error("[UPLOAD API] Erro no manipulador de gravação de arquivos:", e);
+        console.error("[UPLOAD API / MULTER] Erro ao gravar arquivo:", e);
         res.status(500).json({ error: `Erro interno ao salvar arquivo: ${e.message}` });
       }
     });

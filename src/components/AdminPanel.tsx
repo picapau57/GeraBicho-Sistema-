@@ -42,63 +42,90 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
       setUploadedFileInfo(null);
       setUploadErrorText("");
 
-      const formData = new FormData();
-      formData.append("file", file);
-
       const token = localStorage.getItem("bicho_jwt_token");
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
-        body: formData
-      });
 
-      if (!res.ok) {
-        let serverMsg = "Falha no upload do arquivo";
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error("O arquivo excede o limite máximo permitido de 50MB.");
+      }
+
+      const reader = new FileReader();
+      
+      reader.onerror = () => {
+        setUploadStatus("error");
+        setUploadErrorText("Falha ao ler o arquivo no navegador.");
+      };
+
+      reader.onload = async () => {
         try {
-          const rawText = await res.text();
-          try {
-            const errData = JSON.parse(rawText);
-            if (errData && errData.error) {
-              serverMsg = errData.error;
-            } else {
-              serverMsg = rawText || `Erro ${res.status}: ${res.statusText}`;
-            }
-          } catch (jsonErr) {
-            if (rawText && rawText.length < 200) {
-              serverMsg = rawText;
-            } else {
+          const base64Data = reader.result as string;
+
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileSize: file.size,
+              base64Data: base64Data
+            })
+          });
+
+          if (!res.ok) {
+            let serverMsg = "Falha no upload do arquivo";
+            try {
+              const rawText = await res.text();
+              try {
+                const errData = JSON.parse(rawText);
+                if (errData && errData.error) {
+                  serverMsg = errData.error;
+                } else {
+                  serverMsg = rawText || `Erro ${res.status}: ${res.statusText}`;
+                }
+              } catch (jsonErr) {
+                if (rawText && rawText.length < 200) {
+                  serverMsg = rawText;
+                } else {
+                  serverMsg = `Erro ${res.status}: ${res.statusText}`;
+                }
+              }
+            } catch (readErr) {
               serverMsg = `Erro ${res.status}: ${res.statusText}`;
             }
+            throw new Error(serverMsg);
           }
-        } catch (readErr) {
-          serverMsg = `Erro ${res.status}: ${res.statusText}`;
-        }
-        throw new Error(serverMsg);
-      }
 
-      const data = await res.json();
-      if (data.success) {
-        setUploadStatus("success");
-        setUploadedFileInfo({ name: data.fileName, size: data.fileSize, type: data.fileType });
-        
-        // Auto-populate the active product form fields!
-        setNewProduct(prev => ({
-          ...prev,
-          fileName: data.fileName,
-          fileSize: data.fileSize,
-          fileType: (["XLSX","PDF","ZIP","EXE","APK","DOCX","RAR","TXT"].includes(data.fileType) ? data.fileType : "ZIP") as any,
-          savedName: data.savedName
-        }));
-      } else {
-        setUploadStatus("error");
-        setUploadErrorText("O servidor retornou uma resposta inválida.");
-      }
+          const data = await res.json();
+          if (data.success) {
+            setUploadStatus("success");
+            setUploadedFileInfo({ name: data.fileName, size: data.fileSize, type: data.fileType });
+            
+            // Auto-populate the active product form fields!
+            setNewProduct(prev => ({
+              ...prev,
+              fileName: data.fileName,
+              fileSize: data.fileSize,
+              fileType: (["XLSX","PDF","ZIP","EXE","APK","DOCX","RAR","TXT"].includes(data.fileType) ? data.fileType : "ZIP") as any,
+              savedName: data.savedName
+            }));
+          } else {
+            setUploadStatus("error");
+            setUploadErrorText("O servidor retornou uma resposta inválida.");
+          }
+        } catch (innerErr: any) {
+          console.error(innerErr);
+          setUploadStatus("error");
+          setUploadErrorText(innerErr.message || innerErr.toString() || "Erro desconhecido ao processar.");
+        }
+      };
+
+      reader.readAsDataURL(file);
+
     } catch (err: any) {
       console.error(err);
       setUploadStatus("error");
-      setUploadErrorText(err.message || err.toString() || "Erro desconhecido ao enviar.");
+      setUploadErrorText(err.message || err.toString() || "Erro ao preparar envio.");
     }
   };
 
