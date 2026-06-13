@@ -470,28 +470,36 @@ async function startServer() {
     limits: { fileSize: 50 * 1024 * 1024 } // limit 50MB
   });
 
-  app.post("/api/upload", requireAdmin, upload.single("file"), (req: any, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "Nenhum arquivo recebido." });
+  app.post("/api/upload", requireAdmin, (req: any, res: any, next: any) => {
+    upload.single("file")(req, res, (err: any) => {
+      if (err) {
+        console.error("Erro no multer ao receber arquivo:", err);
+        return res.status(400).json({ error: `Falha no processamento: ${err.message}` });
       }
-      
-      const file = req.file;
-      const originalName = file.originalname;
-      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
-      const ext = path.extname(originalName).replace(".", "").toUpperCase();
 
-      // Return uploaded info for frontend auto-complete and save
-      res.json({
-        success: true,
-        fileName: originalName,
-        fileSize: sizeInMB,
-        fileType: ext,
-        savedName: file.filename
-      });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "Nenhum arquivo físico foi recebido." });
+        }
+        
+        const file = req.file;
+        const originalName = file.originalname;
+        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+        const ext = path.extname(originalName).replace(".", "").toUpperCase();
+
+        // Return uploaded info for frontend auto-complete and save
+        res.json({
+          success: true,
+          fileName: originalName,
+          fileSize: sizeInMB,
+          fileType: ext,
+          savedName: file.filename
+        });
+      } catch (e: any) {
+        console.error("Erro no manipulador de gravação de arquivos:", e);
+        res.status(500).json({ error: `Erro interno do servidor: ${e.message}` });
+      }
+    });
   });
 
   // ==========================================

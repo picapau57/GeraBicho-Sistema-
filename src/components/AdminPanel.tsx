@@ -32,6 +32,7 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
   // Storage, dragging and upload control state
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error" | "none">("idle");
+  const [uploadErrorText, setUploadErrorText] = useState<string>("");
   const [uploadedFileInfo, setUploadedFileInfo] = useState<{ name: string; size: string; type: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,6 +40,7 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
     try {
       setUploadStatus("uploading");
       setUploadedFileInfo(null);
+      setUploadErrorText("");
 
       const formData = new FormData();
       formData.append("file", file);
@@ -53,7 +55,23 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
       });
 
       if (!res.ok) {
-        throw new Error("Falha no upload do arquivo");
+        let serverMsg = "Falha no upload do arquivo";
+        try {
+          const errData = await res.json();
+          if (errData && errData.error) {
+            serverMsg = errData.error;
+          }
+        } catch (je) {
+          try {
+            const rawText = await res.text();
+            if (rawText && rawText.length < 200) {
+              serverMsg = rawText;
+            } else {
+              serverMsg = `Erro ${res.status}: ${res.statusText}`;
+            }
+          } catch (te) {}
+        }
+        throw new Error(serverMsg);
       }
 
       const data = await res.json();
@@ -71,10 +89,12 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
         }));
       } else {
         setUploadStatus("error");
+        setUploadErrorText("O servidor retornou uma resposta inválida.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setUploadStatus("error");
+      setUploadErrorText(err.message || err.toString() || "Erro desconhecido ao enviar.");
     }
   };
 
@@ -188,6 +208,7 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
       });
       setUploadStatus("idle");
       setUploadedFileInfo(null);
+      setUploadErrorText("");
       refreshAllAdminData();
       if (onRefreshTrigger) onRefreshTrigger();
     } catch (e: any) {
@@ -649,8 +670,9 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
                     )}
 
                     {uploadStatus === "error" && (
-                      <div className="mt-2 flex items-center space-x-1.5 bg-rose-50 text-rose-800 border-rose-200 border rounded-xl px-4 py-1.5 text-[10px] font-extrabold">
-                        <span>⚠️ Falha ao processar arquivo. Verifique sua conexão ou tente manual.</span>
+                      <div className="mt-2 flex flex-col items-center gap-1 bg-rose-50 text-rose-800 border-rose-200 border rounded-xl px-4 py-2 text-[10px] font-extrabold max-w-full">
+                        <span className="flex items-center gap-1">⚠️ Falha no Upload</span>
+                        <span className="text-center font-bold text-rose-600 bg-white/70 px-2 py-0.5 rounded border border-rose-100 break-all">{uploadErrorText || "Erro desconhecido. Verifique sua conexão."}</span>
                       </div>
                     )}
                   </div>
