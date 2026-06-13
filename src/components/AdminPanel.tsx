@@ -57,19 +57,23 @@ export default function AdminPanel({ currentUser, onRefreshTrigger }: AdminPanel
       if (!res.ok) {
         let serverMsg = "Falha no upload do arquivo";
         try {
-          const errData = await res.json();
-          if (errData && errData.error) {
-            serverMsg = errData.error;
-          }
-        } catch (je) {
+          const rawText = await res.text();
           try {
-            const rawText = await res.text();
+            const errData = JSON.parse(rawText);
+            if (errData && errData.error) {
+              serverMsg = errData.error;
+            } else {
+              serverMsg = rawText || `Erro ${res.status}: ${res.statusText}`;
+            }
+          } catch (jsonErr) {
             if (rawText && rawText.length < 200) {
               serverMsg = rawText;
             } else {
               serverMsg = `Erro ${res.status}: ${res.statusText}`;
             }
-          } catch (te) {}
+          }
+        } catch (readErr) {
+          serverMsg = `Erro ${res.status}: ${res.statusText}`;
         }
         throw new Error(serverMsg);
       }

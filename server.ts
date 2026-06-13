@@ -452,40 +452,41 @@ async function startServer() {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  // Set up storage with standard Multer
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      const ext = path.extname(file.originalname);
-      const baseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "");
-      cb(null, `${baseName}-${uniqueSuffix}${ext}`);
-    }
-  });
-
+  // Use Memory Storage to hold files in memory before writing manually (guarantees compatibility, no lockouts)
+  const storage = multer.memoryStorage();
   const upload = multer({
     storage,
     limits: { fileSize: 50 * 1024 * 1024 } // limit 50MB
   });
 
   app.post("/api/upload", requireAdmin, (req: any, res: any, next: any) => {
+    console.log("[UPLOAD API] Recebendo requisição de upload...");
     upload.single("file")(req, res, (err: any) => {
       if (err) {
-        console.error("Erro no multer ao receber arquivo:", err);
-        return res.status(400).json({ error: `Falha no processamento: ${err.message}` });
+        console.error("[UPLOAD API] Erro no multer ao receber arquivo:", err);
+        return res.status(400).json({ error: `Falha no processamento do arquivo: ${err.message}` });
       }
 
       try {
         if (!req.file) {
-          return res.status(400).json({ error: "Nenhum arquivo físico foi recebido." });
+          console.error("[UPLOAD API] Nenhum arquivo recebido em req.file");
+          return res.status(400).json({ error: "Nenhum arquivo físico foi recebido pelo servidor." });
         }
         
         const file = req.file;
-        const originalName = file.originalname;
+        const originalName = file.originalname || "arquivo-sem-nome";
         const sizeInMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
         const ext = path.extname(originalName).replace(".", "").toUpperCase();
+
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const cleanBaseName = path.basename(originalName, path.extname(originalName)).replace(/[^a-zA-Z0-9_-]/g, "");
+        const savedName = `${cleanBaseName || "doc"}-${uniqueSuffix}${path.extname(originalName)}`;
+
+        // Write file securely and synchoronously using node fs
+        const fullPath = path.join(uploadsDir, savedName);
+        console.log(`[UPLOAD API] Gravando arquivo no disco: ${fullPath} (${file.size} bytes)...`);
+        fs.writeFileSync(fullPath, file.buffer);
+        console.log("[UPLOAD API] Arquivo gravado com sucesso!");
 
         // Return uploaded info for frontend auto-complete and save
         res.json({
@@ -493,11 +494,11 @@ async function startServer() {
           fileName: originalName,
           fileSize: sizeInMB,
           fileType: ext,
-          savedName: file.filename
+          savedName: savedName
         });
       } catch (e: any) {
-        console.error("Erro no manipulador de gravação de arquivos:", e);
-        res.status(500).json({ error: `Erro interno do servidor: ${e.message}` });
+        console.error("[UPLOAD API] Erro no manipulador de gravação de arquivos:", e);
+        res.status(500).json({ error: `Erro interno ao salvar arquivo: ${e.message}` });
       }
     });
   });
